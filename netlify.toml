@@ -1,0 +1,4 @@
+[build]
+  base = "Restaurant website"
+  command = "npm run build"
+  publish = ".next"
