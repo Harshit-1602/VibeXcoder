@@ -450,6 +450,14 @@ body {
   filter: drop-shadow(0 0 16px rgba(212, 168, 83, 0.6));
 }
 
+.floor-table.booked-table {
+  fill: rgba(220, 38, 38, 0.15) !important;
+  stroke: #dc2626 !important;
+  stroke-width: 1.5px !important;
+  filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.3));
+  cursor: not-allowed;
+}
+
 .floor-plan-container svg {
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
 }

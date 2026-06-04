@@ -2,19 +2,110 @@
 
 import { motion } from 'framer-motion';
 import { Section } from '../Section';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '../Toast';
+import { useStore } from '../../../store/useStore';
+import { createReservation, getReservations } from '../../../lib/db';
 
 export function ReservationSection() {
   const [submitted, setSubmitted] = useState(false);
   const { showToast } = useToast();
+  
+  const {
+    selectedDate,
+    selectedTime,
+    bookedTableIds,
+    selectedTableId,
+    setSelectedDate,
+    setSelectedTime,
+    setBookedTableIds,
+  } = useStore();
 
-  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+  const handleDateChange = useCallback(async (dateStr: string) => {
+    setSelectedDate(dateStr);
+    if (dateStr) {
+      try {
+        const resList = await getReservations(dateStr);
+        const bookedIds = resList
+          .filter((r) => r.status !== 'cancelled')
+          .map((r) => r.table_id);
+        setBookedTableIds(bookedIds);
+      } catch (err) {
+        console.error('Failed to load reservations for date:', err);
+      }
+    } else {
+      setBookedTableIds([]);
+    }
+  }, [setSelectedDate, setBookedTableIds]);
+
+  // Set default date to today and default time to 19:30
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    handleDateChange(today);
+    setSelectedTime('19:30');
+  }, [handleDateChange, setSelectedTime]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
-    showToast('Reservation confirmed! We look forward to welcoming you.', 'success');
-    setTimeout(() => setSubmitted(false), 4000);
-  }, [showToast]);
+    const formData = new FormData(e.currentTarget);
+    const nameVal = formData.get('name') as string;
+    const emailVal = formData.get('email') as string;
+    const phoneVal = formData.get('phone') as string;
+    const dateVal = formData.get('date') as string;
+    const timeVal = formData.get('time') as string;
+    const guestsVal = formData.get('guests') as string;
+    const requestsVal = formData.get('requests') as string;
+
+    if (!dateVal) {
+      showToast('Please select a date for your reservation.', 'info');
+      return;
+    }
+
+    if (bookedTableIds.includes(selectedTableId)) {
+      showToast('The selected table is already booked for this date. Please select another table.', 'info');
+      return;
+    }
+
+    try {
+      await createReservation({
+        name: nameVal,
+        email: emailVal,
+        phone: phoneVal,
+        date: dateVal,
+        time: timeVal,
+        guests: guestsVal,
+        requests: requestsVal,
+        table_id: selectedTableId,
+      });
+
+      setSubmitted(true);
+      showToast('Reservation confirmed! We look forward to welcoming you.', 'success');
+
+      // Refresh booked tables
+      const resList = await getReservations(dateVal);
+      const bookedIds = resList
+        .filter((r) => r.status !== 'cancelled')
+        .map((r) => r.table_id);
+      setBookedTableIds(bookedIds);
+
+      // Reset form text fields (excluding date/time to keep view state)
+      const formEl = e.currentTarget;
+      const nameInput = formEl.querySelector('#res-name') as HTMLInputElement | null;
+      const emailInput = formEl.querySelector('#res-email') as HTMLInputElement | null;
+      const phoneInput = formEl.querySelector('#res-phone') as HTMLInputElement | null;
+      const requestsInput = formEl.querySelector('#res-requests') as HTMLTextAreaElement | null;
+      
+      if (nameInput) nameInput.value = '';
+      if (emailInput) emailInput.value = '';
+      if (phoneInput) phoneInput.value = '';
+      if (requestsInput) requestsInput.value = '';
+
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save reservation. Please try again.', 'info');
+    }
+  }, [selectedTableId, bookedTableIds, showToast, setBookedTableIds]);
 
   return (
     <Section id="reservation">
@@ -58,6 +149,7 @@ export function ReservationSection() {
               </label>
               <input
                 id="res-name"
+                name="name"
                 type="text"
                 placeholder="Your name"
                 required
@@ -70,6 +162,7 @@ export function ReservationSection() {
               </label>
               <input
                 id="res-email"
+                name="email"
                 type="email"
                 placeholder="your@email.com"
                 required
@@ -82,6 +175,7 @@ export function ReservationSection() {
               </label>
               <input
                 id="res-phone"
+                name="phone"
                 type="tel"
                 placeholder="+33 1 00 00 00 00"
                 className="w-full bg-transparent border-b border-[#d4a853]/15 py-2 text-sm text-[#f0ece4] placeholder:text-[#8a8694]/30 focus:outline-none focus:border-[#d4a853] transition-colors"
@@ -93,7 +187,10 @@ export function ReservationSection() {
               </label>
               <input
                 id="res-date"
+                name="date"
                 type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
                 required
                 className="w-full bg-transparent border-b border-[#d4a853]/15 py-2 text-sm text-[#f0ece4] focus:outline-none focus:border-[#d4a853] transition-colors [color-scheme:dark]"
               />
@@ -105,7 +202,10 @@ export function ReservationSection() {
                 </label>
                 <input
                   id="res-time"
+                  name="time"
                   type="time"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
                   required
                   className="w-full bg-transparent border-b border-[#d4a853]/15 py-2 text-sm text-[#f0ece4] focus:outline-none focus:border-[#d4a853] transition-colors [color-scheme:dark]"
                 />
@@ -116,6 +216,7 @@ export function ReservationSection() {
                 </label>
                 <select
                   id="res-guests"
+                  name="guests"
                   className="w-full bg-transparent border-b border-[#d4a853]/15 py-2 text-sm text-[#f0ece4] focus:outline-none focus:border-[#d4a853] transition-colors appearance-none [&>option]:bg-[#121218] [&>option]:text-[#f0ece4]"
                 >
                   <option>2 Guests</option>
@@ -131,6 +232,7 @@ export function ReservationSection() {
               </label>
               <textarea
                 id="res-requests"
+                name="requests"
                 rows={2}
                 placeholder="Dietary requirements, celebrations, seating preferences..."
                 className="w-full bg-transparent border-b border-[#d4a853]/15 py-2 text-sm text-[#f0ece4] placeholder:text-[#8a8694]/30 focus:outline-none focus:border-[#d4a853] transition-colors resize-none"

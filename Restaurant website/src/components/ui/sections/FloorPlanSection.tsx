@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Section } from '../Section';
 import Image from 'next/image';
 import { useToast } from '../Toast';
+import { useStore } from '../../../store/useStore';
 
 interface TableDetails {
   id: string;
@@ -51,14 +52,23 @@ const tablesData: Record<string, TableDetails> = {
 };
 
 export function FloorPlanSection() {
-  const [selectedTable, setSelectedTable] = useState<string>('chefs');
+  const { selectedTableId, setSelectedTableId, bookedTableIds } = useStore();
   const { showToast } = useToast();
 
   const handleSelectTable = useCallback((id: string) => {
-    setSelectedTable(id);
-  }, []);
+    if (bookedTableIds.includes(id)) {
+      showToast('This table is already reserved for the chosen date and time.', 'info');
+      return;
+    }
+    setSelectedTableId(id);
+  }, [bookedTableIds, setSelectedTableId, showToast]);
 
   const handleReserveTable = useCallback((table: TableDetails) => {
+    if (bookedTableIds.includes(table.id)) {
+      showToast('This table is already reserved.', 'info');
+      return;
+    }
+
     // 1. Find reservation form fields
     const requestsTextarea = document.getElementById('res-requests') as HTMLTextAreaElement | null;
     const nameInput = document.getElementById('res-name') as HTMLInputElement | null;
@@ -85,9 +95,17 @@ export function FloorPlanSection() {
 
     // 4. Show success toast notification
     showToast(`Selected ${table.name}! Preference added to your request.`, 'success');
-  }, [showToast]);
+  }, [showToast, bookedTableIds]);
 
-  const activeTable = tablesData[selectedTable] || tablesData.chefs;
+  const getTableClass = useCallback((id: string) => {
+    if (bookedTableIds.includes(id)) {
+      return 'booked-table';
+    }
+    return selectedTableId === id ? 'active-table' : '';
+  }, [bookedTableIds, selectedTableId]);
+
+  const activeTable = tablesData[selectedTableId] || tablesData.chefs;
+  const isBooked = bookedTableIds.includes(activeTable.id);
 
   return (
     <Section id="floorplan">
@@ -144,7 +162,7 @@ export function FloorPlanSection() {
 
               {/* The Chef's Table (Close to kitchen, center top) */}
               <g
-                className={`floor-table ${selectedTable === 'chefs' ? 'active-table' : ''}`}
+                className={`floor-table ${getTableClass('chefs')}`}
                 onClick={() => handleSelectTable('chefs')}
               >
                 {/* Outer seating rings */}
@@ -161,7 +179,7 @@ export function FloorPlanSection() {
 
               {/* Seine Window Tables (Left side by the wall) */}
               <g
-                className={`floor-table ${selectedTable === 'window' ? 'active-table' : ''}`}
+                className={`floor-table ${getTableClass('window')}`}
                 onClick={() => handleSelectTable('window')}
               >
                 {/* Chairs */}
@@ -174,7 +192,7 @@ export function FloorPlanSection() {
 
               {/* La Grande Alcove (Private booths at the bottom right) */}
               <g
-                className={`floor-table ${selectedTable === 'alcove' ? 'active-table' : ''}`}
+                className={`floor-table ${getTableClass('alcove')}`}
                 onClick={() => handleSelectTable('alcove')}
               >
                 {/* Curved Booth wall */}
@@ -192,7 +210,7 @@ export function FloorPlanSection() {
 
               {/* The Terroir Terrace (Garden area at the bottom center/left) */}
               <g
-                className={`floor-table ${selectedTable === 'terrace' ? 'active-table' : ''}`}
+                className={`floor-table ${getTableClass('terrace')}`}
                 onClick={() => handleSelectTable('terrace')}
               >
                 {/* Greenery / Foliage bounds */}
@@ -269,10 +287,11 @@ export function FloorPlanSection() {
                   </p>
 
                   <button
+                    disabled={isBooked}
                     onClick={() => handleReserveTable(activeTable)}
-                    className="w-full py-3 bg-[#d4a853] text-[#0a0a0f] uppercase tracking-[0.25em] text-[9px] font-semibold hover:bg-[#e8c97a] hover:shadow-[0_0_15px_rgba(212,168,83,0.3)] transition-all duration-300 rounded-sm cursor-pointer"
+                    className="w-full py-3 bg-[#d4a853] text-[#0a0a0f] uppercase tracking-[0.25em] text-[9px] font-semibold hover:bg-[#e8c97a] hover:shadow-[0_0_15px_rgba(212,168,83,0.3)] transition-all duration-300 rounded-sm cursor-pointer disabled:bg-[#1a1a24] disabled:text-[#8a8694]/40 disabled:border disabled:border-white/5 disabled:cursor-not-allowed"
                   >
-                    Select Table & Book
+                    {isBooked ? 'Table Already Booked' : 'Select Table & Book'}
                   </button>
                 </div>
               </motion.div>

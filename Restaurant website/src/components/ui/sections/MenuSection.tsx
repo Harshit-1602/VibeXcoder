@@ -2,13 +2,14 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Section } from '../Section';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MenuBook } from '../MenuBook';
+import { getMenuItems, MenuItem } from '../../../lib/db';
 
-const menus: Record<string, { course: string; name: string; desc: string; price: string }[]> = {
+const INITIAL_MENUS: Record<string, { course: string; name: string; desc: string; price: string }[]> = {
   'Tasting Menu': [
     { course: 'Amuse-Bouche', name: 'The Gold Leaf', desc: 'Aged wagyu, 24k gold, truffle essence', price: '€48' },
-    { course: 'First Course', name: "Ocean\u0027s Whisper", desc: 'Bluefin tuna, sea foam, kelp oil', price: '€62' },
+    { course: 'First Course', name: "Ocean's Whisper", desc: 'Bluefin tuna, sea foam, kelp oil', price: '€62' },
     { course: 'Fish', name: 'Arctic Silk', desc: 'Halibut, champagne beurre blanc, caviar', price: '€78' },
     { course: 'Meat', name: 'Forest Soul', desc: 'Wild mushrooms, venison, pine needle jus', price: '€92' },
     { course: 'Cheese', name: 'The Meadow', desc: 'Aged comté, fig, walnut, honeycomb', price: '€38' },
@@ -27,19 +28,46 @@ const menus: Record<string, { course: string; name: string; desc: string; price:
     { course: 'White', name: 'Puligny-Montrachet', desc: 'Domaine Leflaive · 2019', price: '€55' },
     { course: 'Red', name: 'Châteauneuf-du-Pape', desc: 'Château Rayas · 2017', price: '€65' },
     { course: 'Red', name: 'Barolo Riserva', desc: 'Giacomo Conterno · 2015', price: '€75' },
-    { course: 'Sweet', name: 'Sauternes', desc: 'Château d\'Yquem · 2016', price: '€55' },
+    { course: 'Sweet', name: 'Sauternes', desc: "Château d'Yquem · 2016", price: '€55' },
     { course: 'Digestif', name: 'Cognac XO', desc: 'Rémy Martin · Louis XIII', price: '€85' },
   ],
 };
 
-const tabNames = Object.keys(menus);
-
 export function MenuSection() {
-  const [activeTab, setActiveTab] = useState(tabNames[0]);
+  const [menus, setMenus] = useState<Record<string, MenuItem[]>>(INITIAL_MENUS as any);
+  const tabNames = Object.keys(menus);
+  const [activeTab, setActiveTab] = useState(tabNames[0] || 'Tasting Menu');
   const [menuBookOpen, setMenuBookOpen] = useState(false);
 
   const openMenuBook = useCallback(() => setMenuBookOpen(true), []);
   const closeMenuBook = useCallback(() => setMenuBookOpen(false), []);
+
+  useEffect(() => {
+    const loadMenu = async () => {
+      try {
+        const items = await getMenuItems();
+        const grouped: Record<string, MenuItem[]> = {};
+        items.forEach((item) => {
+          if (!grouped[item.category]) {
+            grouped[item.category] = [];
+          }
+          grouped[item.category].push(item);
+        });
+        if (Object.keys(grouped).length > 0) {
+          setMenus(grouped);
+        }
+      } catch (e) {
+        console.error('Failed to load dynamic menu:', e);
+      }
+    };
+    loadMenu();
+  }, []);
+
+  useEffect(() => {
+    if (tabNames.length > 0 && !tabNames.includes(activeTab)) {
+      setActiveTab(tabNames[0]);
+    }
+  }, [menus, activeTab, tabNames]);
 
   return (
     <>
@@ -93,9 +121,9 @@ export function MenuSection() {
               transition={{ duration: 0.35 }}
               className="space-y-0"
             >
-              {menus[activeTab].map((item, i) => (
+              {menus[activeTab]?.map((item, i) => (
                 <div
-                  key={i}
+                  key={item.id || i}
                   className="group flex items-center gap-6 md:gap-10 py-7 border-b border-[#d4a853]/10 last:border-b-0 cursor-default hover:bg-[#121218]/40 hover:shadow-[0_0_15px_rgba(212,168,83,0.05)] px-6 -mx-6 transition-all duration-300 rounded-sm"
                 >
                   {/* Course label */}
@@ -131,6 +159,7 @@ export function MenuSection() {
               {activeTab === 'Tasting Menu' && 'Full tasting menu · €320 per person'}
               {activeTab === 'À La Carte' && 'Prices per dish · Service included'}
               {activeTab === 'Wine Pairing' && 'Full pairing · €380 · 6 glasses'}
+              {!['Tasting Menu', 'À La Carte', 'Wine Pairing'].includes(activeTab) && 'Fresh seasonal ingredients · Exquisite selection'}
             </p>
             <button
               onClick={openMenuBook}
